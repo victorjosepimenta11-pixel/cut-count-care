@@ -14,7 +14,92 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      clients: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          phone: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+          phone?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      haircuts: {
+        Row: {
+          client_id: string
+          created_at: string
+          cut_date: string
+          id: string
+          is_courtesy: boolean
+          is_paid: boolean
+          price: number
+          user_id: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          cut_date?: string
+          id?: string
+          is_courtesy?: boolean
+          is_paid?: boolean
+          price?: number
+          user_id: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          cut_date?: string
+          id?: string
+          is_courtesy?: boolean
+          is_paid?: boolean
+          price?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "haircuts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          full_name: string | null
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          full_name?: string | null
+          id: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

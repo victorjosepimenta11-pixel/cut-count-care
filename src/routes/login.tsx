@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Scissors } from "lucide-react";
 import { toast } from "sonner";
 
@@ -26,6 +27,8 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
 
   useEffect(() => {
     if (!loading && user) navigate({ to: "/" });
@@ -50,6 +53,18 @@ function LoginPage() {
     setSubmitting(false);
     if (error) return toast.error(error.message);
     toast.success("Conta criada! Verifique seu e-mail para confirmar.");
+  };
+
+  const sendReset = async () => {
+    if (!forgotEmail) return toast.error("Informe seu e-mail.");
+    setSubmitting(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setSubmitting(false);
+    if (error) return toast.error(error.message);
+    toast.success("Enviamos um link para redefinir sua senha.");
+    setForgotOpen(false);
   };
 
   return (
@@ -81,6 +96,13 @@ function LoginPage() {
               <Button className="w-full h-11" disabled={submitting} onClick={signIn}>
                 Entrar
               </Button>
+              <button
+                type="button"
+                onClick={() => { setForgotEmail(email); setForgotOpen(true); }}
+                className="text-sm text-muted-foreground hover:text-primary transition-colors w-full text-center"
+              >
+                Esqueci minha senha
+              </button>
             </TabsContent>
             <TabsContent value="signup" className="space-y-4 mt-4">
               <div className="space-y-2">
@@ -102,6 +124,29 @@ function LoginPage() {
           </Tabs>
         </div>
       </div>
+
+      <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Redefinir senha</DialogTitle>
+            <DialogDescription>
+              Digite seu e-mail e enviaremos um link para você criar uma nova senha.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>E-mail</Label>
+            <Input
+              type="email"
+              value={forgotEmail}
+              onChange={(e) => setForgotEmail(e.target.value)}
+              className="h-11"
+            />
+          </div>
+          <Button className="w-full h-11" disabled={submitting} onClick={sendReset}>
+            Enviar link
+          </Button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -9,8 +9,11 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronsUpDown, Scissors, Gift } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { ChevronsUpDown, Scissors, Gift, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { fidelityProgress, brl } from "@/lib/fidelity";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -31,6 +34,14 @@ export function RegisterCutDialog({
   const [paid, setPaid] = useState(true);
   const [courtesy, setCourtesy] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [cutDate, setCutDate] = useState<Date>(() => new Date());
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+
+  const handleOpenChange = (next: boolean) => {
+    // Always start from today when the dialog opens
+    if (next) setCutDate(new Date());
+    setOpen(next);
+  };
 
   const { data: clients = [] } = useQuery({
     queryKey: ["clients", user?.id],
@@ -65,9 +76,21 @@ export function RegisterCutDialog({
   const mutation = useMutation({
     mutationFn: async () => {
       if (!user || !clientId) throw new Error("Selecione um cliente");
+      // Keep the current time of day, only swapping the chosen day
+      const now = new Date();
+      const when = new Date(
+        cutDate.getFullYear(),
+        cutDate.getMonth(),
+        cutDate.getDate(),
+        now.getHours(),
+        now.getMinutes(),
+        now.getSeconds(),
+      );
+      if (when.getTime() > now.getTime()) throw new Error("A data do corte não pode ser futura");
       const { error } = await supabase.from("haircuts").insert({
         user_id: user.id,
         client_id: clientId,
+        cut_date: when.toISOString(),
         price: courtesy ? 0 : Number(price.replace(",", ".")) || 0,
         is_courtesy: courtesy,
         is_paid: courtesy ? true : paid,
@@ -81,13 +104,14 @@ export function RegisterCutDialog({
       setCourtesy(false);
       setPaid(true);
       setPrice("40");
+      setCutDate(new Date());
       if (!defaultClientId) setClientId(undefined);
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         {trigger ?? (
           <Button size="lg" className="gap-2">
@@ -150,6 +174,33 @@ export function RegisterCutDialog({
               )}
             </div>
           )}
+
+          <div className="space-y-2">
+            <Label>Data do corte</Label>
+            <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-between h-12 font-normal">
+                  {format(cutDate, "dd/MM/yyyy")}
+                  <CalendarDays className="h-4 w-4 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  locale={ptBR}
+                  selected={cutDate}
+                  defaultMonth={cutDate}
+                  endMonth={new Date()}
+                  disabled={{ after: new Date() }}
+                  onSelect={(d) => {
+                    if (!d) return;
+                    setCutDate(d);
+                    setDatePickerOpen(false);
+                  }}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
 
           <div className="flex items-center justify-between rounded-lg border border-border p-3">
             <div>

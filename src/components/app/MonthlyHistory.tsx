@@ -1,4 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
   ResponsiveContainer,
@@ -14,7 +17,8 @@ import { brl } from "@/lib/fidelity";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, TrendingUp } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Calendar, TrendingUp, Gift, CheckCircle2 } from "lucide-react";
 
 export interface MonthSummary {
   monthKey: string;
@@ -35,6 +39,7 @@ interface MonthlyHistoryProps {
 
 export function MonthlyHistory({ monthlyData, onSelectMonth }: MonthlyHistoryProps) {
   const chartData = [...monthlyData].reverse();
+  const [detailsMonth, setDetailsMonth] = useState<MonthSummary | null>(null);
 
   return (
     <div className="space-y-6">
@@ -185,7 +190,10 @@ export function MonthlyHistory({ monthlyData, onSelectMonth }: MonthlyHistoryPro
                           variant="ghost"
                           size="sm"
                           className="h-7 text-xs hover:bg-amber-500/10 hover:text-amber-400"
-                          onClick={() => onSelectMonth(m.date)}
+                          onClick={() => {
+                            onSelectMonth(m.date);
+                            setDetailsMonth(m);
+                          }}
                         >
                           Ver detalhes
                         </Button>
@@ -198,6 +206,99 @@ export function MonthlyHistory({ monthlyData, onSelectMonth }: MonthlyHistoryPro
           </div>
         </CardContent>
       </Card>
+
+      <MonthDetailsDialog month={detailsMonth} onClose={() => setDetailsMonth(null)} />
     </div>
+  );
+}
+
+function MonthDetailsDialog({ month, onClose }: { month: MonthSummary | null; onClose: () => void }) {
+  const { data: cuts = [], isLoading } = useQuery({
+    queryKey: ["month-cuts", month?.monthKey],
+    enabled: !!month,
+    queryFn: async () => {
+      const start = new Date(month!.date.getFullYear(), month!.date.getMonth(), 1);
+      const end = new Date(month!.date.getFullYear(), month!.date.getMonth() + 1, 1);
+      const { data, error } = await supabase
+        .from("haircuts")
+        .select("*, clients(name)")
+        .gte("cut_date", start.toISOString())
+        .lt("cut_date", end.toISOString())
+        .order("cut_date", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  return (
+    <Dialog open={!!month} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-display text-2xl capitalize">{month?.label}</DialogTitle>
+        </DialogHeader>
+
+        {month && (
+          <div className="grid grid-cols-2 gap-2">
+            <Card className="p-3">
+              <p className="text-xs text-muted-foreground uppercase">Cortes</p>
+              <p className="font-display text-xl font-bold mt-1">{month.cutsCount}</p>
+            </Card>
+            <Card className="p-3 bg-primary/10 border-primary/30">
+              <p className="text-xs text-muted-foreground uppercase">Faturado</p>
+              <p className="font-display text-xl font-bold mt-1">{brl(month.revenue)}</p>
+            </Card>
+            <Card className="p-3 bg-warning/10 border-warning/30">
+              <p className="text-xs text-muted-foreground uppercase">A receber</p>
+              <p className="font-display text-xl font-bold mt-1 text-warning">{brl(month.pending)}</p>
+            </Card>
+            <Card className="p-3">
+              <p className="text-xs text-muted-foreground uppercase">Cortesias</p>
+              <p className="font-display text-xl font-bold mt-1">{month.courtesyCount}</p>
+            </Card>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          {isLoading && <p className="text-sm text-muted-foreground text-center py-4">Carregando...</p>}
+          {!isLoading && cuts.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-4">Nenhum corte neste mês.</p>
+          )}
+          {cuts.map((c) => (
+            <div key={c.id} className="flex items-center gap-3 rounded-lg border border-border p-3">
+              <div className="flex-1 min-w-0">
+                <Link
+                  to="/clientes/$id"
+                  params={{ id: c.client_id }}
+                  className="font-medium hover:text-primary truncate block"
+                >
+                  {c.clients?.name ?? "Cliente removido"}
+                </Link>
+                <p className="text-xs text-muted-foreground">
+                  {new Date(c.cut_date).toLocaleDateString("pt-BR", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                  {!c.is_courtesy && ` · ${brl(Number(c.price))}`}
+                </p>
+              </div>
+              {c.is_courtesy ? (
+                <Badge className="bg-warning/20 text-warning border-warning/40 hover:bg-warning/20">
+                  <Gift className="h-3 w-3 mr-1" /> Cortesia
+                </Badge>
+              ) : c.is_paid ? (
+                <Badge className="bg-success/20 text-success border-success/40 hover:bg-success/20">
+                  <CheckCircle2 className="h-3 w-3 mr-1" /> Pago
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="border-warning/40 text-warning">
+                  Pendente
+                </Badge>
+              )}
+            </div>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
